@@ -42,19 +42,19 @@ def get_references(dimensionsId):
         articleReferences.extend(referenceSearchResponse["docs"])
     return articleReferences
 
-def fill_references(references, article, articleReferences, degree):
-    if degree > 0:
-        degree-=1
+def fill_references(references, article, articleReferences, distance):
+    if distance > 0:
+        distance-=1
         articleReferences=get_references(article["id"])
         nRef=0
         for reference in articleReferences:
             nRef+=1
-            if degree > 0:
+            if distance > 0:
                 print(str(nRef)+"/"+str(len(articleReferences))+"...")
-            if reference["id"] not in references or (degree==1 and references[reference["id"]]["references"]==[]) or degree > 1:
-                fill_references(references, reference, [], degree)
+            if reference["id"] not in references or (distance==1 and references[reference["id"]]["references"]==[]) or distance > 1:
+                fill_references(references, reference, [], distance)
             else:
-                print("Skipping " + reference["id"] + " at leaf+" + str(degree))
+                print("Skipping " + reference["id"] + " at leaf+" + str(distance))
     references[article["id"]]={"article":article, "references":articleReferences}
     return references
 
@@ -75,7 +75,7 @@ for index, rawArticle in rawArticles.iterrows():
 
     article=get_article(cleanedTitle, year)
 
-    references=fill_references(references, article, [], 2)
+    references=fill_references(references, article, [], 0)
 
 with open(sys.argv[2], 'w', encoding='utf-8') as f:
     json.dump(references, f, ensure_ascii=False, indent=4)

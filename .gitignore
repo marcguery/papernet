@@ -1,5 +1,3 @@
-*.csv
-*.tsv
-*.json
-*.cys
+MetaAll.csv
+out/
 __pycache__
