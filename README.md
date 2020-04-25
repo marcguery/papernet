@@ -9,6 +9,5 @@ You may want to change the Python interpreter.
 # Usage
 
 ```bash
-buildNetwork.py <input.csv> output.json
-makeNetworkFiles.py output.json nodes edges
+buildNetwork.py <input.csv> path/to/network
 ```

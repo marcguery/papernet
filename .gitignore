@@ -1,3 +1,4 @@
+*.log
 MetaAll.csv
 out/
 __pycache__
