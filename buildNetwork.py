@@ -75,7 +75,7 @@ def get_references(dimensionsId, distance):
         articleReferences.extend(referenceSearchResponse["docs"])
     return articleReferences
 
-def fill_citations(citations, article, articleReferences, articleReferings, distance):
+def fill_citations(citations, article, distance, articleReferences=[], articleReferings=[], inlibrary=False):
     assert distance >= 0
     if article["id"] in citations and citations[article["id"]]["level"] > 0:
         if distance <= citations[article["id"]]["level"]:
@@ -101,16 +101,17 @@ def fill_citations(citations, article, articleReferences, articleReferings, dist
         nRef=0
         for citation in articleCitations[citationType]:
             nRef+=1
-            fill_citations(citations, citation, [], [], distance-1)
+            fill_citations(citations, citation, distance-1)
     citations[article["id"]]={
         "article":article, 
         "references":[reference["id"] for reference in articleReferences], 
         "referings":[refering["id"] for refering in articleReferings], 
-        "level":distance}
+        "level":distance,
+        "inlibrary":inlibrary}
     return citations
 
-def write_network(network):
-    with open(sys.argv[2], 'w', encoding='utf-8') as f:
+def write_network(network, filename):
+    with open(filename+".json", 'w', encoding='utf-8') as f:
         json.dump(network, f, ensure_ascii=False, indent=4)
 
 def write_nodes(network, filename, ext, sep="\t", quotes=csv.QUOTE_NONE):
@@ -120,11 +121,12 @@ def write_nodes(network, filename, ext, sep="\t", quotes=csv.QUOTE_NONE):
             "html_escaped_title", "publisher_source", "pub_class",
             "doi", "id", "pub_year", 
             "times_cited", "altmetric", "source_title"]
-        writer = csv.DictWriter(nodefile, fieldnames=fieldnames, extrasaction="ignore", delimiter=sep, quoting=quotes)
+        writer = csv.DictWriter(nodefile, fieldnames=fieldnames+["inlibrary"], extrasaction="ignore", delimiter=sep, quoting=quotes)
 
         writer.writeheader()
-        for identifier in citations:
-            lineToWrite={key:clean_text(str(item), cleanr) for key, item in citations[identifier]["article"].items() if key in fieldnames}
+        for identifier in network:
+            lineToWrite={key:clean_text(str(item), cleanr) for key, item in network[identifier]["article"].items() if key in fieldnames}
+            lineToWrite["inlibrary"]=network[identifier]["inlibrary"]
             try:
                 writer.writerow(lineToWrite)
             except:
@@ -135,13 +137,11 @@ def write_edges(network, filename, ext, sep="\t", quotes=csv.QUOTE_NONE):
     with open(filename+ext, "w") as edgefile:
         writer = csv.writer(edgefile, delimiter=sep, quoting=quotes)
         writer.writerow(["Source", "Target", "Weigth"])
-        for identifier in citations:
-            if citations[identifier]["references"]!=[]:
-                for referenceId in citations[identifier]["references"]:
-                    writer.writerow([citations[identifier]["article"]["id"], referenceId, "1"])
-            if citations[identifier]["referings"]!=[]:
-                for referingId in citations[identifier]["referings"]:
-                    writer.writerow([referingId, citations[identifier]["article"]["id"], "1"])
+        for identifier in network:
+            for referenceId in network[identifier]["references"]:
+                writer.writerow([network[identifier]["article"]["id"], referenceId, "1"])
+            for referingId in network[identifier]["referings"]:
+                writer.writerow([referingId, network[identifier]["article"]["id"], "1"])
 
 if __name__ == "__main__":
     sys.stderr = open('err.log', 'w')
@@ -167,8 +167,8 @@ if __name__ == "__main__":
 
         article=get_article(cleanedTitle, year)
 
-        citations=fill_citations(citations, article, [], [], 1)
-    write_network(citations)
+        citations=fill_citations(citations, article, 1, inlibrary=True)
+    write_network(citations, sys.argv[2])
     write_nodes(citations, sys.argv[2]+"-nodes", ext)
     write_edges(citations, sys.argv[2]+"-edges", ext)
     subprocess.check_call(['./remove-dup-edges.sh', sys.argv[2]+"-edges"+ext])
