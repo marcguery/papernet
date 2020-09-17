@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 import sys
 import os.path
 import pandas as pd
@@ -16,12 +16,17 @@ def clean_text(raw_text, cleanr):
 def get_article(title, year):
     articleSearchUrl='https://app.dimensions.ai/discover/publication/results.json?search_text="%s"&search_type=kws&search_field=text_search&and_facet_year=%i'%(title.replace(" ", "%20"), year)
     articleSearchResponse = requests.get(articleSearchUrl)
-    article=articleSearchResponse.json()["docs"][0]
+    try:
+    	article=articleSearchResponse.json()["docs"][0]
+    except:
+    	print("""!!The article %s from %s was not found in Dimensions,
+    		You may need to edit the CSV file!!!"""%(title, year), file=sys.stderr)
+    	return None
     return article
 
 def get_referings(dimensionsId, distance):
     referingsSearchResponse = requests.get(
-    'https://app.dimensions.ai/discover/publication/results.json?and_subset_publication_citations=%s'%dimensionsId)
+    'https://app.dimensions.ai/discover/publication/results.json?or_subset_publication_citations=%s'%dimensionsId)
     try:
         referingsSearchResponse=referingsSearchResponse.json()
     except:
@@ -39,7 +44,7 @@ def get_referings(dimensionsId, distance):
             print("Cannot go further than " + str(len(articleReferings)), file=sys.stderr)
             break
         referingsSearchResponse = requests.get(
-        'https://app.dimensions.ai/discover/publication/results.json?and_subset_publication_citations=%s&%s'%(dimensionsId, cursor))
+        'https://app.dimensions.ai/discover/publication/results.json?or_subset_publication_citations=%s&%s'%(dimensionsId, cursor))
         referingsSearchResponse=referingsSearchResponse.json()
         try:
             assert len(referingsSearchResponse["docs"]) > 0
@@ -51,8 +56,13 @@ def get_referings(dimensionsId, distance):
 
 def get_references(dimensionsId, distance):
     referenceSearchResponse = requests.get(
-    'https://app.dimensions.ai/details/sources/publication/%s/related_citations.json'%dimensionsId)
-    referenceSearchResponse=referenceSearchResponse.json()
+    'https://app.dimensions.ai/discover/publication/results.json?or_subset_publication_references=%s'%dimensionsId)
+    try:
+    	referenceSearchResponse=referenceSearchResponse.json()
+    except:
+        print("Unexpected document, it may be empty:", file=sys.stderr)
+        print(referenceSearchResponse, file=sys.stderr)
+        return []
     totalReferences=referenceSearchResponse["count"] if "count" in referenceSearchResponse else 0
     articleReferences=referenceSearchResponse["docs"] if "docs" in referenceSearchResponse else []
 
@@ -60,12 +70,12 @@ def get_references(dimensionsId, distance):
     #5 references at a time, I could not find another way
     while len(articleReferences) < totalReferences:
         try:
-            cursor=referenceSearchResponse["navigation"]["more.json"].split("?")[-1]
+            cursor=referenceSearchResponse["navigation"]["results_json"].split("?")[-1]
         except:
             print("Cannot go further than " + str(len(articleReferences)), file=sys.stderr)
             break
         referenceSearchResponse = requests.get(
-        'https://app.dimensions.ai/details/sources/publication/%s/related_citations.json?%s'%(dimensionsId, cursor))
+        'https://app.dimensions.ai/discover/publication/results.json?or_subset_publication_references=%s&%s'%(dimensionsId, cursor))
         referenceSearchResponse=referenceSearchResponse.json()
         try:
             assert len(referenceSearchResponse["docs"]) > 0
@@ -166,8 +176,8 @@ if __name__ == "__main__":
         year=int(rawArticle["Publication Year"])
 
         article=get_article(cleanedTitle, year)
-
-        citations=fill_citations(citations, article, 1, inlibrary=True)
+        if article is not None:
+        	citations=fill_citations(citations, article, 1, inlibrary=True)
     write_network(citations, sys.argv[2])
     write_nodes(citations, sys.argv[2]+"-nodes", ext)
     write_edges(citations, sys.argv[2]+"-edges", ext)
